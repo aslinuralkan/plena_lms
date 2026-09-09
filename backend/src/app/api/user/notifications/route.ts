@@ -10,11 +10,11 @@ export async function GET() {
   const session = await requireSession([Role.USER, Role.ADMIN]);
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  await syncUserNotifications(session.id);
+  await syncUserNotifications(session.id, session.customerId);
 
   const [items, unreadCount] = await Promise.all([
     prisma.userNotification.findMany({
-      where: { userId: session.id },
+      where: { userId: session.id, customerId: session.customerId },
       orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
       take: 50,
       select: {
@@ -30,7 +30,11 @@ export async function GET() {
       },
     }),
     prisma.userNotification.count({
-      where: { userId: session.id, readAt: null },
+      where: {
+        userId: session.id,
+        customerId: session.customerId,
+        readAt: null,
+      },
     }),
   ]);
 

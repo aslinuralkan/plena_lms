@@ -30,14 +30,16 @@ export async function PATCH(
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const question = await prisma.question.findUnique({ where: { id } });
+  const question = await prisma.question.findFirst({
+    where: { id, pool: { customerId: session.customerId } },
+  });
   if (!question) {
     return NextResponse.json({ error: "Soru bulunamadı" }, { status: 404 });
   }
 
   if (parsed.data.categoryId) {
-    const category = await prisma.questionCategory.findUnique({
-      where: { id: parsed.data.categoryId },
+    const category = await prisma.questionCategory.findFirst({
+      where: { id: parsed.data.categoryId, customerId: session.customerId },
     });
     if (!category) {
       return NextResponse.json(

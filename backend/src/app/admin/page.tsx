@@ -1,21 +1,28 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { refreshOverdue } from "@/lib/enrollment";
+import { requireSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminHomePage() {
-  await refreshOverdue();
+  const session = await requireSession(["ADMIN"]);
+  if (!session) redirect("/login");
+  const customerId = session.customerId;
+  await refreshOverdue({ customerId });
 
   const [users, groups, courses, questions, enrollments, overdue, completed] =
     await Promise.all([
-      prisma.user.count({ where: { role: "USER", active: true } }),
-      prisma.group.count(),
-      prisma.course.count(),
-      prisma.question.count({ where: { active: true } }),
-      prisma.enrollment.count(),
-      prisma.enrollment.count({ where: { status: "OVERDUE" } }),
-      prisma.enrollment.count({ where: { status: "COMPLETED" } }),
+      prisma.user.count({ where: { customerId, role: "USER", active: true } }),
+      prisma.group.count({ where: { customerId } }),
+      prisma.course.count({ where: { customerId } }),
+      prisma.question.count({
+        where: { active: true, pool: { customerId } },
+      }),
+      prisma.enrollment.count({ where: { customerId } }),
+      prisma.enrollment.count({ where: { customerId, status: "OVERDUE" } }),
+      prisma.enrollment.count({ where: { customerId, status: "COMPLETED" } }),
     ]);
 
   const cards = [

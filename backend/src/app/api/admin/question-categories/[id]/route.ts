@@ -26,7 +26,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Geçersiz kategori verisi" }, { status: 400 });
   }
 
-  const category = await prisma.questionCategory.findUnique({ where: { id } });
+  const category = await prisma.questionCategory.findFirst({
+    where: { id, customerId: session.customerId },
+  });
   if (!category) {
     return NextResponse.json({ error: "Soru kategorisi bulunamadı" }, { status: 404 });
   }
@@ -72,7 +74,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Silme yöntemi seçilmedi" }, { status: 400 });
   }
 
-  const category = await prisma.questionCategory.findUnique({ where: { id } });
+  const category = await prisma.questionCategory.findFirst({
+    where: { id, customerId: session.customerId },
+  });
   if (!category) {
     return NextResponse.json({ error: "Soru kategorisi bulunamadı" }, { status: 404 });
   }
@@ -82,9 +86,12 @@ export async function DELETE(
 
   if (mode.data === "move_to_general") {
     const general = await prisma.questionCategory.upsert({
-      where: { name: "Genel" },
+      where: {
+        customerId_name: { customerId: session.customerId, name: "Genel" },
+      },
       update: {},
       create: {
+        customerId: session.customerId,
         name: "Genel",
         description: "Belirli bir konu başlığına bağlı olmayan genel sorular.",
       },

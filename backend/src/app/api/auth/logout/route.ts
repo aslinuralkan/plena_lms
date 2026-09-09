@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { AuditAction } from "@prisma/client";
-import { destroySession, getSession } from "@/lib/auth";
+import { destroySession, requireSession } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 
 export async function POST() {
-  const session = await getSession();
+  const session = await requireSession();
 
   await destroySession();
 

@@ -18,11 +18,16 @@ export async function GET(req: NextRequest) {
   const courseId = searchParams.get("courseId") || undefined;
   const userId = searchParams.get("userId") || undefined;
 
-  const enrollmentWhere: Prisma.EnrollmentWhereInput = { courseId, userId };
+  const enrollmentWhere: Prisma.EnrollmentWhereInput = {
+    customerId: session.customerId,
+    courseId,
+    userId,
+  };
 
   const [cpEvents, quizAnswers] = await Promise.all([
     prisma.watchEvent.findMany({
       where: {
+        customerId: session.customerId,
         courseId,
         userId,
         eventType: {
@@ -40,7 +45,10 @@ export async function GET(req: NextRequest) {
       where: {
         question: { type: QuestionType.FREE_TEXT },
         textAnswer: { not: null },
-        attempt: { enrollment: enrollmentWhere },
+        attempt: {
+          customerId: session.customerId,
+          enrollment: enrollmentWhere,
+        },
       },
       include: {
         question: { select: { prompt: true } },
@@ -73,7 +81,11 @@ export async function GET(req: NextRequest) {
   const checkpoints =
     checkpointIds.length > 0
       ? await prisma.checkpoint.findMany({
-          where: { id: { in: checkpointIds }, question: { type: QuestionType.FREE_TEXT } },
+          where: {
+            id: { in: checkpointIds },
+            course: { customerId: session.customerId },
+            question: { type: QuestionType.FREE_TEXT },
+          },
           include: { question: { select: { prompt: true } } },
         })
       : [];

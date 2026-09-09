@@ -23,6 +23,24 @@ export async function POST(
     return NextResponse.json({ error: "Kullanıcı seçin" }, { status: 400 });
   }
 
+  const [group, user] = await Promise.all([
+    prisma.group.findFirst({
+      where: { id: groupId, customerId: session.customerId },
+      select: { id: true },
+    }),
+    prisma.user.findFirst({
+      where: {
+        id: parsed.data.userId,
+        customerId: session.customerId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (!group || !user) {
+    return NextResponse.json({ error: "Kayıt bulunamadı" }, { status: 404 });
+  }
+
   await prisma.groupMember.upsert({
     where: { groupId_userId: { groupId, userId: parsed.data.userId } },
     update: {},
@@ -30,7 +48,11 @@ export async function POST(
   });
 
   // Ekibin mevcut atamaları yeni üyeye de yayılır.
-  const synced = await syncEnrollmentsForGroupMember(groupId, parsed.data.userId);
+  const synced = await syncEnrollmentsForGroupMember(
+    groupId,
+    parsed.data.userId,
+    session.customerId,
+  );
 
   await recordAudit({
     action: AuditAction.ADMIN_ADDED_GROUP_MEMBER,
@@ -54,6 +76,19 @@ export async function DELETE(
   const userId = new URL(req.url).searchParams.get("userId");
   if (!userId) {
     return NextResponse.json({ error: "userId gerekli" }, { status: 400 });
+  }
+
+  const membership = await prisma.groupMember.findFirst({
+    where: {
+      groupId,
+      userId,
+      group: { customerId: session.customerId },
+      user: { customerId: session.customerId },
+    },
+    select: { id: true },
+  });
+  if (!membership) {
+    return NextResponse.json({ error: "Kayıt bulunamadı" }, { status: 404 });
   }
 
   await prisma.groupMember.deleteMany({ where: { groupId, userId } });

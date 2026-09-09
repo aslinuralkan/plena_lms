@@ -49,7 +49,7 @@ export async function PATCH(
   }
 
   const before = await prisma.user.findUnique({
-    where: { id, deletedAt: null },
+    where: { id, customerId: session.customerId, deletedAt: null },
     select: { active: true, deactivatedAt: true, name: true },
   });
   if (!before) {
@@ -126,7 +126,7 @@ export async function DELETE(
   }
 
   const before = await prisma.user.findUnique({
-    where: { id, deletedAt: null },
+    where: { id, customerId: session.customerId, deletedAt: null },
     select: { id: true, email: true, active: true },
   });
   if (!before) {

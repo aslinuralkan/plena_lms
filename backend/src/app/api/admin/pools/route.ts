@@ -11,6 +11,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const pools = await prisma.questionPool.findMany({
+    where: { customerId: session.customerId },
     include: {
       questions: {
         where: { active: true },
@@ -55,7 +56,12 @@ export async function POST(req: NextRequest) {
   }
 
   const exists = await prisma.questionPool.findUnique({
-    where: { name: parsed.data.name },
+    where: {
+      customerId_name: {
+        customerId: session.customerId,
+        name: parsed.data.name,
+      },
+    },
   });
   if (exists) {
     return NextResponse.json(
@@ -64,6 +70,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const pool = await prisma.questionPool.create({ data: parsed.data });
+  const pool = await prisma.questionPool.create({
+    data: { ...parsed.data, customerId: session.customerId },
+  });
   return NextResponse.json(pool, { status: 201 });
 }

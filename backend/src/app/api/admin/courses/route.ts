@@ -22,6 +22,7 @@ export async function GET() {
   } as const;
 
   const courses = await prisma.course.findMany({
+    where: { customerId: session.customerId },
     include: {
       video: true,
       category: { select: { id: true, name: true } },
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
 
   const course = await prisma.course.create({
     data: {
+      customerId: session.customerId,
       title: parsed.data.title,
       description: parsed.data.description,
       passPercent: 80,
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
 
   const pool = await prisma.questionPool.create({
     data: {
+      customerId: session.customerId,
       name: `[Kurs] ${course.id}`,
       description: `"${course.title}" eğitiminin sınav soruları`,
     },

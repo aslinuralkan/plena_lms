@@ -9,6 +9,7 @@ export type { EnrollmentWindow, WindowCheck } from "./window";
  * USER hedefinde tek kişi, GROUP hedefinde ekibin aktif üyeleri.
  */
 async function resolveTargetUserIds(assignment: {
+  customerId: string;
   target: AssignmentTarget;
   userId: string | null;
   groupId: string | null;
@@ -19,7 +20,11 @@ async function resolveTargetUserIds(assignment: {
   if (!assignment.groupId) return [];
 
   const members = await prisma.groupMember.findMany({
-    where: { groupId: assignment.groupId, user: { active: true } },
+    where: {
+      groupId: assignment.groupId,
+      group: { customerId: assignment.customerId },
+      user: { active: true, customerId: assignment.customerId },
+    },
     select: { userId: true },
   });
   return members.map((m) => m.userId);
@@ -29,9 +34,12 @@ async function resolveTargetUserIds(assignment: {
  * Atamayı kullanıcı bazlı Enrollment kayıtlarına yayar.
  * Var olan kayıtların ilerlemesi korunur, sadece tarih penceresi tazelenir.
  */
-export async function syncEnrollmentsForAssignment(assignmentId: string) {
-  const assignment = await prisma.assignment.findUnique({
-    where: { id: assignmentId },
+export async function syncEnrollmentsForAssignment(
+  assignmentId: string,
+  customerId: string,
+) {
+  const assignment = await prisma.assignment.findFirst({
+    where: { id: assignmentId, customerId },
   });
   if (!assignment) return 0;
 
@@ -48,6 +56,7 @@ export async function syncEnrollmentsForAssignment(assignmentId: string) {
         assignedAt: assignment.assignedAt,
       },
       create: {
+        customerId: assignment.customerId,
         userId,
         courseId: assignment.courseId,
         assignmentId: assignment.id,
@@ -67,11 +76,13 @@ export async function syncEnrollmentsForAssignment(assignmentId: string) {
 export async function syncEnrollmentsForGroupMember(
   groupId: string,
   userId: string,
+  customerId: string,
 ) {
   const assignments = await prisma.assignment.findMany({
     where: {
       target: AssignmentTarget.GROUP,
       groupId,
+      customerId,
       course: { active: true },
     },
   });
@@ -86,6 +97,7 @@ export async function syncEnrollmentsForGroupMember(
         reminderDays: assignment.reminderDays,
       },
       create: {
+        customerId,
         userId,
         courseId: assignment.courseId,
         assignmentId: assignment.id,
@@ -124,9 +136,13 @@ export async function refreshOverdue(where?: Prisma.EnrollmentWhereInput) {
 }
 
 /** Kullanıcının şu an görebileceği kayıtlar: başlangıç tarihi gelmiş olanlar. */
-export function visibleEnrollmentWhere(userId: string): Prisma.EnrollmentWhereInput {
+export function visibleEnrollmentWhere(
+  userId: string,
+  customerId: string,
+): Prisma.EnrollmentWhereInput {
   return {
     userId,
+    customerId,
     startsAt: { lte: new Date() },
     course: { active: true },
   };

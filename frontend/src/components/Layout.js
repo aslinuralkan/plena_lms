@@ -217,7 +217,7 @@ export default function Layout({ children }) {
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex-1 min-w-0">
-          <BrandLockup compact onClick={() => navigate(isAdmin ? "/admin" : "/trainings")} />
+          <BrandLockup brand={user?.customer} compact onClick={() => navigate(isAdmin ? "/admin" : "/trainings")} />
         </div>
         <NotificationBell variant="mobile" isAdmin={isAdmin} />
       </header>
@@ -248,7 +248,7 @@ export default function Layout({ children }) {
         <div className="relative z-10 flex flex-col h-full">
           <div className="flex items-center">
             <div className="flex-1 min-w-0">
-              <BrandLockup onClick={() => { navigate(isAdmin ? "/admin" : "/trainings"); closeMobile(); }} />
+              <BrandLockup brand={user?.customer} onClick={() => { navigate(isAdmin ? "/admin" : "/trainings"); closeMobile(); }} />
             </div>
             <button
               data-testid="mobile-menu-close"

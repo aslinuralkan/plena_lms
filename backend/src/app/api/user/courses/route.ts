@@ -11,10 +11,13 @@ export async function GET() {
   const session = await requireSession([Role.USER, Role.ADMIN]);
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  await refreshOverdue({ userId: session.id });
+  await refreshOverdue({
+    userId: session.id,
+    customerId: session.customerId,
+  });
 
   const enrollments = await prisma.enrollment.findMany({
-    where: visibleEnrollmentWhere(session.id),
+    where: visibleEnrollmentWhere(session.id, session.customerId),
     include: {
       course: {
         include: {

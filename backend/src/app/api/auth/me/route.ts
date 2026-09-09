@@ -11,10 +11,29 @@ export async function GET() {
     where: { id: session.id },
     select: {
       id: true,
+      customerId: true,
       email: true,
       name: true,
       role: true,
       active: true,
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          settings: {
+            select: {
+              brandName: true,
+              logoUrl: true,
+              primaryColor: true,
+              secondaryColor: true,
+              dashboardText: true,
+              reportTitle: true,
+              poweredByText: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

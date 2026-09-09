@@ -25,7 +25,12 @@ export async function GET(req: NextRequest) {
 
   const [watchEvents, quizAttempts, systemLogs] = await Promise.all([
     prisma.watchEvent.findMany({
-      where: { userId, courseId, createdAt },
+      where: {
+        customerId: session.customerId,
+        userId,
+        courseId,
+        createdAt,
+      },
       include: {
         user: { select: { id: true, name: true, email: true } },
         course: { select: { id: true, title: true } },
@@ -34,7 +39,12 @@ export async function GET(req: NextRequest) {
       take: 500,
     }),
     prisma.quizAttempt.findMany({
-      where: { userId, courseId, completedAt: createdAt },
+      where: {
+        customerId: session.customerId,
+        userId,
+        courseId,
+        completedAt: createdAt,
+      },
       include: {
         user: { select: { id: true, name: true, email: true } },
         course: { select: { id: true, title: true } },
@@ -45,7 +55,11 @@ export async function GET(req: NextRequest) {
     // Video dışı sistem eylemleri. Eğitim filtresi burada geçerli değil,
     // çünkü denetim kaydı eğitime bağlı olmak zorunda değil.
     prisma.auditLog.findMany({
-      where: { actorId: userId, createdAt },
+      where: {
+        customerId: session.customerId,
+        actorId: userId,
+        createdAt,
+      },
       include: { actor: { select: { id: true, name: true, email: true } } },
       orderBy: { createdAt: "desc" },
       take: 500,

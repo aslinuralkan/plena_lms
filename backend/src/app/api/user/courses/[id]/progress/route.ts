@@ -29,8 +29,12 @@ export async function POST(
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.id, courseId } },
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      courseId,
+      customerId: session.customerId,
+    },
     include: {
       course: {
         include: {
@@ -86,6 +90,7 @@ export async function POST(
     const passedEvents = await prisma.watchEvent.findMany({
       where: {
         enrollmentId: enrollment.id,
+        customerId: session.customerId,
         eventType: WatchEventType.CHECKPOINT_PASSED,
       },
       select: { metadata: true },
@@ -129,6 +134,7 @@ export async function POST(
   const updated = await prisma.enrollment.update({
     where: { id: enrollment.id },
     data: {
+      customerId: session.customerId,
       positionSec: progress.positionSec,
       maxReachedSec: progress.maxReachedSec,
       watchedPercent: progress.watchedPercent,
@@ -143,6 +149,7 @@ export async function POST(
 
   await prisma.watchEvent.create({
     data: {
+      customerId: session.customerId,
       enrollmentId: enrollment.id,
       userId: session.id,
       courseId,

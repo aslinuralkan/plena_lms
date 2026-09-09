@@ -35,8 +35,8 @@ export async function PUT(
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
+  const course = await prisma.course.findFirst({
+    where: { id: courseId, customerId: session.customerId },
     include: { video: true },
   });
   if (!course) {
@@ -68,7 +68,10 @@ export async function PUT(
   const questionIds = [...new Set(items.map((cp) => cp.questionId))];
   if (questionIds.length > 0) {
     const found = await prisma.question.count({
-      where: { id: { in: questionIds } },
+      where: {
+        id: { in: questionIds },
+        pool: { customerId: session.customerId },
+      },
     });
     if (found !== questionIds.length) {
       return NextResponse.json({ error: "Soru bulunamadı" }, { status: 404 });

@@ -35,12 +35,26 @@ async function findCurrentActivation(token: string) {
       user: {
         select: {
           id: true,
+          customerId: true,
           email: true,
           name: true,
           role: true,
           sessionVersion: true,
           active: true,
           deletedAt: true,
+          customer: {
+            select: {
+              status: true,
+              name: true,
+              settings: {
+                select: {
+                  brandName: true,
+                  logoUrl: true,
+                  poweredByText: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -65,7 +79,8 @@ function isUsable(
       activation.expiresAt.getTime() > Date.now() &&
       activation.failedAttempts < ACTIVATION_MAX_ATTEMPTS &&
       !activation.user.active &&
-      !activation.user.deletedAt,
+      !activation.user.deletedAt &&
+      activation.user.customer.status === "ACTIVE",
   );
 }
 
@@ -79,6 +94,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     valid: true,
     name: activation!.user.name,
+    customer: activation!.user.customer,
     expiresAt: activation!.expiresAt.toISOString(),
   });
 }
@@ -159,11 +175,26 @@ export async function POST(req: NextRequest) {
         },
         select: {
           id: true,
+          customerId: true,
           email: true,
           name: true,
           role: true,
           sessionVersion: true,
           active: true,
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              settings: {
+                select: {
+                  brandName: true,
+                  logoUrl: true,
+                  poweredByText: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -176,6 +207,7 @@ export async function POST(req: NextRequest) {
         },
         update: {},
         create: {
+          customerId: user.customerId,
           userId: user.id,
           kind: NotificationKind.WELCOME,
           dedupeKey: "welcome",

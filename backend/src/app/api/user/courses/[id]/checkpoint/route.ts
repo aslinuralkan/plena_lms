@@ -33,8 +33,12 @@ export async function POST(
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.id, courseId } },
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      courseId,
+      customerId: session.customerId,
+    },
     include: { course: { include: { video: true } } },
   });
   if (!enrollment?.course.video) {
@@ -53,8 +57,11 @@ export async function POST(
     return NextResponse.json({ error: window.reason }, { status: 403 });
   }
 
-  const checkpoint = await prisma.checkpoint.findUnique({
-    where: { id: parsed.data.checkpointId },
+  const checkpoint = await prisma.checkpoint.findFirst({
+    where: {
+      id: parsed.data.checkpointId,
+      course: { customerId: session.customerId },
+    },
     include: { question: { include: { choices: true } } },
   });
   if (!checkpoint || checkpoint.courseId !== courseId) {
@@ -82,6 +89,7 @@ export async function POST(
   if (passed) {
     await prisma.watchEvent.create({
       data: {
+        customerId: session.customerId,
         enrollmentId: enrollment.id,
         userId: session.id,
         courseId,
@@ -109,6 +117,7 @@ export async function POST(
       const failEvents = await prisma.watchEvent.findMany({
         where: {
           enrollmentId: enrollment.id,
+          customerId: session.customerId,
           eventType: WatchEventType.CHECKPOINT_FAILED,
         },
         orderBy: { createdAt: "desc" },
@@ -129,6 +138,7 @@ export async function POST(
       await prisma.watchEvent.create({
         data: {
           enrollmentId: enrollment.id,
+          customerId: session.customerId,
           userId: session.id,
           courseId,
           videoId: enrollment.course.video.id,
@@ -165,7 +175,8 @@ export async function POST(
     if (earlier.length > 0) {
       const passedEvents = await prisma.watchEvent.findMany({
         where: {
-          enrollmentId: enrollment.id,
+        enrollmentId: enrollment.id,
+        customerId: session.customerId,
           eventType: WatchEventType.CHECKPOINT_PASSED,
         },
         select: { metadata: true },
@@ -187,6 +198,7 @@ export async function POST(
   await prisma.enrollment.update({
     where: { id: enrollment.id },
     data: {
+      customerId: session.customerId,
       positionSec: rewindTo,
       maxReachedSec: newMax,
       watchedPercent: duration > 0 ? (newMax / duration) * 100 : 0,
@@ -196,6 +208,7 @@ export async function POST(
 
   await prisma.watchEvent.create({
     data: {
+      customerId: session.customerId,
       enrollmentId: enrollment.id,
       userId: session.id,
       courseId,

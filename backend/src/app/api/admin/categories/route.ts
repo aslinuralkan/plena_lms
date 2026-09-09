@@ -11,6 +11,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const categories = await prisma.category.findMany({
+    where: { customerId: session.customerId },
     include: { _count: { select: { courses: true } } },
     orderBy: { name: "asc" },
   });
@@ -43,7 +44,12 @@ export async function POST(req: NextRequest) {
   }
 
   const exists = await prisma.category.findUnique({
-    where: { name: parsed.data.name },
+    where: {
+      customerId_name: {
+        customerId: session.customerId,
+        name: parsed.data.name,
+      },
+    },
   });
   if (exists) {
     return NextResponse.json(
@@ -52,6 +58,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const category = await prisma.category.create({ data: parsed.data });
+  const category = await prisma.category.create({
+    data: { ...parsed.data, customerId: session.customerId },
+  });
   return NextResponse.json(category, { status: 201 });
 }

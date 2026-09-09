@@ -1,7 +1,7 @@
 # Frontend — Plena LMS
 
 React/CRACO tabanlı kullanıcı arayüzüdür. Lokal geliştirmede
-`http://localhost:3000` üzerinde çalışır ve API isteklerini
+`http://localhost:3002` üzerinde çalışır ve API isteklerini
 `REACT_APP_BACKEND_URL` ile backend'e gönderir.
 
 ## Lokal çalıştırma

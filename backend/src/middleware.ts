@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import {
+  CUSTOMER_SESSION_COOKIE,
+  PLATFORM_SESSION_COOKIE,
+  platformSigningSecret,
+} from "@/lib/session-boundaries";
 
-const COOKIE_NAME = "marti_session";
+const COOKIE_NAME = CUSTOMER_SESSION_COOKIE;
+const PLATFORM_COOKIE_NAME = PLATFORM_SESSION_COOKIE;
 
 function secretKey() {
   return new TextEncoder().encode(
@@ -9,14 +15,22 @@ function secretKey() {
   );
 }
 
+function platformSecretKey() {
+  const secret =
+    process.env.PLATFORM_AUTH_SECRET ||
+    process.env.AUTH_SECRET ||
+    "poc-demo-secret-change-me";
+  return new TextEncoder().encode(platformSigningSecret(secret));
+}
+
 function allowedOrigins(): string[] {
-  return (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000")
+  return (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3002")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 }
 
-// Emergent UI ayrı origin'de (CRA, :3000) çalıştığı için /api/* isteklerinde
+// Emergent UI ayrı origin'de (CRA, :3002) çalıştığı için /api/* isteklerinde
 // credentials destekli CORS gerekir.
 function withCors(res: NextResponse, req: NextRequest) {
   const origin = req.headers.get("origin");
@@ -50,14 +64,45 @@ export async function middleware(req: NextRequest) {
 }
 
 async function handle(req: NextRequest, pathname: string, isApi: boolean) {
+  const isPlatform =
+    pathname.startsWith("/platform") || pathname.startsWith("/api/platform");
+  const isPlatformLogin =
+    pathname === "/platform/login" ||
+    pathname === "/platform/forgot-password" ||
+    pathname === "/platform/reset-password" ||
+    pathname === "/api/platform/auth/login" ||
+    pathname === "/api/platform/auth/forgot-password" ||
+    pathname === "/api/platform/auth/reset-password";
+
+  if (isPlatform) {
+    if (isPlatformLogin) return NextResponse.next();
+    const platformToken = req.cookies.get(PLATFORM_COOKIE_NAME)?.value;
+    if (!platformToken) {
+      return isApi
+        ? NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        : NextResponse.redirect(new URL("/platform/login", req.url));
+    }
+    try {
+      const { payload } = await jwtVerify(platformToken, platformSecretKey());
+      if (payload.role !== "SUPER_ADMIN") throw new Error("Forbidden");
+      return NextResponse.next();
+    } catch {
+      return isApi
+        ? NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        : NextResponse.redirect(new URL("/platform/login", req.url));
+    }
+  }
+
   const isAdmin = pathname.startsWith("/admin");
   const isUserArea = pathname.startsWith("/user");
   const isProtectedApi =
     isApi &&
+    !pathname.startsWith("/api/platform") &&
     !pathname.startsWith("/api/auth/login") &&
     !pathname.startsWith("/api/auth/activate") &&
     !pathname.startsWith("/api/auth/forgot-password") &&
     !pathname.startsWith("/api/auth/reset-password") &&
+    !pathname.startsWith("/api/branding") &&
     !pathname.startsWith("/api/health");
 
   if (!isAdmin && !isUserArea && !isProtectedApi) {
@@ -96,5 +141,5 @@ async function handle(req: NextRequest, pathname: string, isApi: boolean) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/user/:path*", "/api/:path*"],
+  matcher: ["/admin/:path*", "/user/:path*", "/platform/:path*", "/api/:path*"],
 };

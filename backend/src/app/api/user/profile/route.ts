@@ -11,6 +11,7 @@ const schema = z.object({
 
 const profileSelect = {
   id: true,
+  customerId: true,
   email: true,
   name: true,
   role: true,
@@ -49,6 +50,7 @@ export async function PATCH(req: NextRequest) {
   });
   await createSession({
     id: user.id,
+    customerId: user.customerId,
     email: user.email,
     name: user.name,
     role: user.role,

@@ -11,6 +11,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const categories = await prisma.questionCategory.findMany({
+    where: { customerId: session.customerId },
     include: {
       questions: {
         where: { active: true },
@@ -51,7 +52,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const category = await prisma.questionCategory.create({ data: parsed.data });
+    const category = await prisma.questionCategory.create({
+      data: { ...parsed.data, customerId: session.customerId },
+    });
     return NextResponse.json(
       { ...category, questionCount: 0 },
       { status: 201 },

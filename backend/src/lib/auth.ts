@@ -3,11 +3,14 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "./prisma";
+import { resolveSessionCustomerId } from "./tenant";
+import { CUSTOMER_SESSION_COOKIE } from "./session-boundaries";
 
-const COOKIE_NAME = "marti_session";
+const COOKIE_NAME = CUSTOMER_SESSION_COOKIE;
 
 export type SessionUser = {
   id: string;
+  customerId: string;
   email: string;
   name: string;
   role: Role;
@@ -30,6 +33,7 @@ export async function verifyPassword(password: string, hash: string) {
 export async function createSession(user: SessionUser) {
   const token = await new SignJWT({
     id: user.id,
+    customerId: user.customerId,
     email: user.email,
     name: user.name,
     role: user.role,
@@ -63,6 +67,7 @@ export async function getSession(): Promise<SessionUser | null> {
     const { payload } = await jwtVerify(token, secretKey());
     return {
       id: String(payload.id),
+      customerId: payload.customerId ? String(payload.customerId) : "",
       email: String(payload.email),
       name: String(payload.name),
       role: payload.role as Role,
@@ -77,12 +82,22 @@ export async function requireSession(roles?: Role[]) {
   const session = await getSession();
   if (!session) return null;
   if (roles && !roles.includes(session.role)) return null;
-  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  const user = await prisma.user.findUnique({
+    where: { id: session.id },
+    include: { customer: { select: { status: true } } },
+  });
   if (
     !user ||
     !user.active ||
     user.deletedAt ||
-    user.sessionVersion !== session.sessionVersion
+    user.sessionVersion !== session.sessionVersion ||
+    user.customer.status !== "ACTIVE" ||
+    !resolveSessionCustomerId(session.customerId, user.customerId)
   ) return null;
-  return session;
+  // Geçiş uyumluluğu: customerId claim'i olmayan eski, geçerli JWT yalnızca
+  // doğrulanmış User kaydındaki customerId ile zenginleştirilir.
+  return {
+    ...session,
+    customerId: resolveSessionCustomerId(session.customerId, user.customerId)!,
+  };
 }

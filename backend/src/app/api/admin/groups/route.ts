@@ -12,6 +12,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const groups = await prisma.group.findMany({
+    where: { customerId: session.customerId },
     include: {
       members: {
         include: { user: { select: { id: true, name: true, email: true, active: true } } },
@@ -48,13 +49,20 @@ export async function POST(req: NextRequest) {
   }
 
   const exists = await prisma.group.findUnique({
-    where: { name: parsed.data.name },
+    where: {
+      customerId_name: {
+        customerId: session.customerId,
+        name: parsed.data.name,
+      },
+    },
   });
   if (exists) {
     return NextResponse.json({ error: "Bu isimde bir ekip zaten var" }, { status: 409 });
   }
 
-  const group = await prisma.group.create({ data: parsed.data });
+  const group = await prisma.group.create({
+    data: { ...parsed.data, customerId: session.customerId },
+  });
 
   await recordAudit({
     action: AuditAction.ADMIN_CREATED_GROUP,

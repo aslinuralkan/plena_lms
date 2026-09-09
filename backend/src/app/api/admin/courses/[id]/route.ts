@@ -30,8 +30,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const course = await prisma.course.findUnique({
-    where: { id },
+  const course = await prisma.course.findFirst({
+    where: { id, customerId: session.customerId },
     include: { exam: true },
   });
   if (!course) {
@@ -41,8 +41,8 @@ export async function PATCH(
   const { passPercent, questionPoolId, scoringMode, ...courseData } = parsed.data;
 
   if (questionPoolId) {
-    const pool = await prisma.questionPool.findUnique({
-      where: { id: questionPoolId },
+    const pool = await prisma.questionPool.findFirst({
+      where: { id: questionPoolId, customerId: session.customerId },
     });
     if (!pool) {
       return NextResponse.json({ error: "Soru havuzu bulunamadı" }, { status: 404 });
@@ -87,11 +87,11 @@ export async function PATCH(
   // mevcut atamalarla tekrar eşitle. Geçmiş ilerleme kayıtları upsert ile korunur.
   if (parsed.data.active === true && course.active === false) {
     const assignments = await prisma.assignment.findMany({
-      where: { courseId: id },
+      where: { courseId: id, customerId: session.customerId },
       select: { id: true },
     });
     for (const assignment of assignments) {
-      await syncEnrollmentsForAssignment(assignment.id);
+      await syncEnrollmentsForAssignment(assignment.id, session.customerId);
     }
   }
 

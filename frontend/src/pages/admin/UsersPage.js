@@ -283,14 +283,6 @@ export default function UsersPage() {
             </select>
             <div className="space-y-2 pt-1">
               <button
-                data-testid="user-save-btn"
-                className="w-full px-5 py-2.5 rounded-full bg-white border border-navy-900/15 text-navy-900 text-sm font-medium hover:bg-slate-50 active:scale-[0.98] transition-[background-color,transform] disabled:opacity-40"
-                disabled={!form.email || !form.name || userSubmitting}
-                onClick={() => createUser(false)}
-              >
-                {userSubmitting ? "Kaydediliyor..." : "Kullanıcıyı Kaydet"}
-              </button>
-              <button
                 data-testid="user-save-and-send-activation-btn"
                 className={btnPrimary + " w-full"}
                 disabled={!form.email || !form.name || userSubmitting}

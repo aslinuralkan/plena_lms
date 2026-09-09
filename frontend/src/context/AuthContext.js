@@ -22,6 +22,18 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
+  useEffect(() => {
+    const settings = user?.customer?.settings;
+    document.documentElement.style.setProperty(
+      "--customer-primary",
+      settings?.primaryColor || "#1F76A2",
+    );
+    document.documentElement.style.setProperty(
+      "--customer-secondary",
+      settings?.secondaryColor || "#0E2033",
+    );
+  }, [user]);
+
   const login = async (email, password) => {
     const res = await api.post("/auth/login", { email, password });
     setUser(res.data);

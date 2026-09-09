@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Martı Cloud LMS — PoC",
+  title: "Plena LMS",
   description: "Denenebilir eğitim yönetim sistemi PoC",
 };
 

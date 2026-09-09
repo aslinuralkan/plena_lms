@@ -22,9 +22,19 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email.toLowerCase() },
-    select: { id: true, email: true, name: true, active: true, deletedAt: true },
+    select: {
+      id: true,
+      customerId: true,
+      email: true,
+      name: true,
+      active: true,
+      deletedAt: true,
+      customer: { select: { status: true } },
+    },
   });
-  if (!user || !user.active || user.deletedAt) return NextResponse.json(response);
+  if (!user || !user.active || user.deletedAt || user.customer.status !== "ACTIVE") {
+    return NextResponse.json(response);
+  }
 
   const cooldownStart = new Date(
     Date.now() - PASSWORD_RESET_COOLDOWN_SECONDS * 1000,
@@ -44,6 +54,7 @@ export async function POST(req: NextRequest) {
       to: user.email,
       name: user.name,
       token: credentials.token,
+      customerId: user.customerId,
     });
     await recordAudit({
       action: AuditAction.USER_REQUESTED_PASSWORD_RESET,

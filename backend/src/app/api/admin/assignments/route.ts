@@ -13,6 +13,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const assignments = await prisma.assignment.findMany({
+    where: { customerId: session.customerId },
     include: {
       user: { select: { id: true, name: true, email: true } },
       group: { select: { id: true, name: true } },
@@ -108,8 +109,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
+  const course = await prisma.course.findFirst({
+    where: { id: courseId, customerId: session.customerId },
     select: { active: true },
   });
   if (!course) {
@@ -122,6 +123,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const targetExists =
+    target === "USER"
+      ? await prisma.user.findFirst({
+          where: {
+            id: userId!,
+            customerId: session.customerId,
+            deletedAt: null,
+          },
+          select: { id: true },
+        })
+      : await prisma.group.findFirst({
+          where: { id: groupId!, customerId: session.customerId },
+          select: { id: true },
+        });
+  if (!targetExists) {
+    return NextResponse.json({ error: "Hedef bulunamadı" }, { status: 404 });
+  }
+
   const assignment = await prisma.assignment.upsert({
     where:
       target === "USER"
@@ -129,6 +148,7 @@ export async function POST(req: NextRequest) {
         : { courseId_groupId: { courseId, groupId: groupId! } },
     update: { startsAt: startsAtDate, dueAt: dueAtDate, reminderDays },
     create: {
+      customerId: session.customerId,
       courseId,
       target,
       userId,
@@ -140,7 +160,10 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const enrolled = await syncEnrollmentsForAssignment(assignment.id);
+  const enrolled = await syncEnrollmentsForAssignment(
+    assignment.id,
+    session.customerId,
+  );
 
   await recordAudit({
     action: AuditAction.ADMIN_ASSIGNED_COURSE,

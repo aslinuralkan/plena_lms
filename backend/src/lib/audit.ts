@@ -10,6 +10,7 @@ import { prisma } from "./prisma";
 export type AuditActor = {
   id: string;
   email: string;
+  customerId?: string;
 } | null;
 
 export type AuditInput = {
@@ -19,6 +20,8 @@ export type AuditInput = {
   entityType?: string;
   entityId?: string;
   metadata?: Prisma.InputJsonValue;
+  customerId?: string | null;
+  platformAdminId?: string | null;
 };
 
 /**
@@ -34,6 +37,8 @@ export async function recordAudit(input: AuditInput): Promise<void> {
         action: input.action,
         actorId: input.actor?.id ?? null,
         actorEmail: input.actor?.email ?? null,
+        customerId: input.customerId ?? input.actor?.customerId ?? null,
+        platformAdminId: input.platformAdminId ?? null,
         entityType: input.entityType ?? null,
         entityId: input.entityId ?? null,
         metadata: input.metadata,

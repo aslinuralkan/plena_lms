@@ -37,7 +37,7 @@ export default function AdminDashboard() {
         testId="admin-welcome-banner"
         overline="GENEL BAKIŞ"
         title={`Hoş geldiniz, ${user?.name || "Sistem Yöneticisi"}`}
-        subtitle="Martı Denizcilik LMS platformuna hoş geldiniz."
+        subtitle={user?.customer?.settings?.dashboardText || `${user?.customer?.settings?.brandName || user?.customer?.name || "Plena"} LMS platformuna hoş geldiniz.`}
       />
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-10">
         <StatCard testId="stat-users" icon={Users} label="Çalışan" value={data.total_users} hero />

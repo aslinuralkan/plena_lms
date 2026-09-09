@@ -29,6 +29,7 @@ export default function ActivatePage() {
   const { setUser } = useAuth();
   const [status, setStatus] = useState("loading");
   const [name, setName] = useState("");
+  const [customer, setCustomer] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
   const [remaining, setRemaining] = useState(0);
   const [code, setCode] = useState("");
@@ -53,6 +54,7 @@ export default function ActivatePage() {
       .then((response) => {
         if (!active) return;
         setName(response.data.name || "");
+        setCustomer(response.data.customer || null);
         setExpiresAt(response.data.expiresAt);
         setStatus("ready");
       })
@@ -147,7 +149,7 @@ export default function ActivatePage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-brand-700 flex items-center justify-center shadow-glow-cyan-sm">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-2xl font-semibold tracking-tight text-navy-950">Plena LMS</span>
+              <span className="text-2xl font-semibold tracking-tight text-navy-950">{customer?.settings?.brandName || customer?.name || "Plena LMS"}</span>
             </div>
           </div>
 
@@ -257,7 +259,7 @@ export default function ActivatePage() {
           )}
 
           <div className="border-t border-navy-900/10 mt-8 pt-5 text-center">
-            <p className="text-xs text-slate-500">© Martı Denizcilik — Powered by Plena LMS</p>
+            <p className="text-xs text-slate-500">© {customer?.settings?.brandName || customer?.name || "Plena LMS"} — {customer?.settings?.poweredByText || "Powered by Plena LMS"}</p>
           </div>
         </div>
       </main>

@@ -34,17 +34,28 @@ export function MartiBadge({ size = "w-8 h-8", className = "" }) {
 
 // Sidebar co-branding lockup: Martı Denizcilik leads (the organization the
 // employee works for), Plena LMS follows as the underlying platform.
-export function BrandLockup({ onClick, compact = false }) {
+export function BrandLockup({ onClick, compact = false, brand }) {
+  const settings = brand?.settings || {};
+  const brandName = settings.brandName || brand?.name || "Martı Denizcilik";
+  const poweredBy = settings.poweredByText || "Powered by Plena LMS";
   return (
     <button
       data-testid="sidebar-logo"
       onClick={onClick}
       className={`flex items-center gap-2.5 px-4 shrink-0 w-full text-left ${compact ? "h-14" : "h-16"}`}
     >
-      <MartiBadge size={compact ? "w-7 h-7" : undefined} />
+      {settings.logoUrl ? (
+        <img
+          src={settings.logoUrl}
+          alt={`${brandName} logo`}
+          className={`${compact ? "w-7 h-7" : "w-8 h-8"} rounded-xl object-contain bg-white shrink-0`}
+        />
+      ) : (
+        <MartiBadge size={compact ? "w-7 h-7" : undefined} />
+      )}
       <div className="min-w-0">
-        <p className={`font-semibold tracking-tight text-white leading-tight truncate ${compact ? "text-sm" : "text-[15px]"}`}>Martı Denizcilik</p>
-        <p className="text-[10px] tracking-[0.08em] text-cyan-300/80 truncate">Powered by Plena LMS</p>
+        <p className={`font-semibold tracking-tight text-white leading-tight truncate ${compact ? "text-sm" : "text-[15px]"}`}>{brandName}</p>
+        <p className="text-[10px] tracking-[0.08em] text-cyan-300/80 truncate">{poweredBy}</p>
       </div>
     </button>
   );

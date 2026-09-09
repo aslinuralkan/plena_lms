@@ -19,6 +19,10 @@ import ReportsPage from "@/pages/admin/ReportsPage";
 import NotificationsPage from "@/pages/admin/NotificationsPage";
 import MyTrainingsPage from "@/pages/employee/MyTrainingsPage";
 import WatchPage from "@/pages/employee/WatchPage";
+import PlatformLoginPage from "@/pages/platform/PlatformLoginPage";
+import PlatformDashboard from "@/pages/platform/PlatformDashboard";
+import PlatformForgotPasswordPage from "@/pages/platform/PlatformForgotPasswordPage";
+import PlatformResetPasswordPage from "@/pages/platform/PlatformResetPasswordPage";
 
 const Protected = ({ children, adminOnly }) => {
   const { user, loading } = useAuth();
@@ -58,6 +62,10 @@ function AppRouter() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/activate" element={<ActivatePage />} />
+      <Route path="/platform/login" element={<PlatformLoginPage />} />
+      <Route path="/platform/forgot-password" element={<PlatformForgotPasswordPage />} />
+      <Route path="/platform/reset-password" element={<PlatformResetPasswordPage />} />
+      <Route path="/platform" element={<PlatformDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/dashboard" element={<HomeRedirect />} />
       <Route path="/admin" element={<Protected adminOnly><AdminDashboard /></Protected>} />

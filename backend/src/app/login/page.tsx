@@ -1,14 +1,23 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("kaptan1@marti.demo");
-  const [password, setPassword] = useState("Kaptan123!");
+  const isDevelopment = process.env.NODE_ENV !== "production";
+  const [email, setEmail] = useState(isDevelopment ? "kaptan1@marti.demo" : "");
+  const [password, setPassword] = useState(isDevelopment ? "Kaptan123!" : "");
+  const [brandName, setBrandName] = useState("Plena LMS");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/branding")
+      .then((response) => response.json())
+      .then((data) => setBrandName(data.settings?.brandName || data.name || "Plena LMS"))
+      .catch(() => {});
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,7 +42,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-md flex-col justify-center px-4 py-10">
       <div className="rounded-3xl border border-sea-200 bg-white/95 p-8 shadow-sm">
-        <p className="text-xs uppercase tracking-[0.2em] text-sea-500">Martı Denizcilik</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-sea-500">{brandName}</p>
         <h1 className="mt-2 text-2xl font-semibold text-sea-950">Cloud LMS PoC</h1>
         <p className="mt-2 text-sm text-sea-600">
           Demo hesaplarla giriş yapın. Kullanıcı: zorunlu izleme + test. Admin: rapor ve içerik.
@@ -68,11 +77,11 @@ export default function LoginPage() {
             {loading ? "Giriş yapılıyor..." : "Giriş yap"}
           </button>
         </form>
-        <div className="mt-6 rounded-2xl bg-sea-50 p-4 text-xs text-sea-700">
+        {isDevelopment ? <div className="mt-6 rounded-2xl bg-sea-50 p-4 text-xs text-sea-700">
           <p className="font-medium">Demo hesaplar</p>
           <p className="mt-1">admin@marti.demo / Admin123!</p>
           <p>kaptan1@marti.demo / Kaptan123!</p>
-        </div>
+        </div> : null}
       </div>
     </div>
   );

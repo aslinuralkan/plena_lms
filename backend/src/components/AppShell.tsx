@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { SessionUser } from "@/lib/auth";
 import { LogoutButton } from "./LogoutButton";
+import { prisma } from "@/lib/prisma";
 
-export function AppShell({
+export async function AppShell({
   user,
   nav,
   children,
@@ -11,11 +12,16 @@ export function AppShell({
   nav: { href: string; label: string }[];
   children: React.ReactNode;
 }) {
+  const customer = await prisma.customer.findUnique({
+    where: { id: user.customerId },
+    select: { name: true, settings: { select: { brandName: true } } },
+  });
+  const brandName = customer?.settings?.brandName || customer?.name || "Plena LMS";
   return (
     <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-6xl flex-col gap-6 px-4 py-6 md:px-6">
       <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-sea-200 bg-white/90 px-5 py-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-sea-500">Martı Denizcilik</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-sea-500">{brandName}</p>
           <h1 className="text-xl font-semibold text-sea-900">Cloud LMS PoC</h1>
         </div>
         <nav className="flex flex-wrap items-center gap-2">

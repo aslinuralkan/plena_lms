@@ -18,8 +18,19 @@ export const http = axios.create({
 export const toUiRole = (role) => (role === "ADMIN" ? "admin" : "employee");
 export const toEduRole = (role) => (role === "admin" ? "ADMIN" : "USER");
 
-export const toUiUser = (u) =>
-  u
+let currentCustomerBrand = {
+  name: "Martı Denizcilik",
+  poweredByText: "Powered by Plena LMS",
+};
+
+export const toUiUser = (u) => {
+  if (u?.customer) {
+    currentCustomerBrand = {
+      name: u.customer.settings?.brandName || u.customer.name,
+      poweredByText: u.customer.settings?.poweredByText || "Powered by Plena LMS",
+    };
+  }
+  return u
     ? {
         user_id: u.id,
         id: u.id,
@@ -28,6 +39,8 @@ export const toUiUser = (u) =>
         role: toUiRole(u.role),
         picture: u.picture || null,
         account_active: u.active !== false,
+        customer_id: u.customerId || null,
+        customer: u.customer || null,
         can_manage_status:
           u.active !== false || Boolean(u.deactivatedAt),
         status:
@@ -41,6 +54,7 @@ export const toUiUser = (u) =>
         created_at: u.createdAt || null,
       }
     : null;
+};
 
 // edu_module EnrollmentStatus -> Emergent UI assignment status
 const toUiStatus = (status, videoCompleted) => {
@@ -444,20 +458,20 @@ const buildReportPdf = async (reportTitle, rows, dimension = "training") => {
     pageMargins: [30, 58, 30, 38],
     info: {
       title: `${reportTitle} - ${isPersonReport ? "Kişi Bazlı Rapor" : "Eğitim Detay Raporu"}`,
-      author: "Martı Denizcilik · Plena LMS",
+      author: `${currentCustomerBrand.name} · Plena LMS`,
       subject: "Eğitim ilerleme ve sınav sonuçları",
     },
     header: {
       margin: [30, 18, 30, 0],
       columns: [
         {
-          text: "MARTI DENİZCİLİK",
+          text: currentCustomerBrand.name.toLocaleUpperCase("tr-TR"),
           fontSize: 10,
           bold: true,
           color: "#0E2033",
         },
         {
-          text: "Powered by Plena LMS",
+          text: currentCustomerBrand.poweredByText,
           fontSize: 8,
           color: "#0891B2",
           alignment: "right",
@@ -541,7 +555,7 @@ const buildReportPdf = async (reportTitle, rows, dimension = "training") => {
     footer: (page, total) => ({
       margin: [30, 0, 30, 14],
       columns: [
-        { text: "Martı Denizcilik · Gizli eğitim raporu", fontSize: 7, color: "#94A3B8" },
+        { text: `${currentCustomerBrand.name} · Gizli eğitim raporu`, fontSize: 7, color: "#94A3B8" },
         { text: `Sayfa ${page} / ${total}`, alignment: "right", fontSize: 7, color: "#64748B" },
       ],
     }),

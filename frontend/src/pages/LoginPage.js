@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { GraduationCap, LogIn } from "lucide-react";
 import loginHero from "@/assets/brand/login-hero.jpg";
+import { http } from "@/lib/api";
 
 // Faint dot grid — restrained "connected systems" texture, not a map.
 const DotGrid = ({ className = "" }) => {
@@ -26,6 +27,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [brand, setBrand] = useState(null);
+
+  useEffect(() => {
+    http.get("/branding").then((res) => {
+      setBrand(res.data);
+      document.documentElement.style.setProperty("--customer-primary", res.data.settings?.primaryColor || "#1F76A2");
+      document.documentElement.style.setProperty("--customer-secondary", res.data.settings?.secondaryColor || "#0E2033");
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!loading && user) {
@@ -55,17 +65,15 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-8 relative z-10">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2.5 mb-14">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-brand-700 flex items-center justify-center shadow-[0_4px_18px_rgba(10,165,196,0.4)]">
-              <GraduationCap className="w-5 h-5 text-white" strokeWidth={2} />
-            </div>
-            <span className="text-lg font-semibold tracking-tight text-white">Plena LMS</span>
+            {brand?.settings?.logoUrl ? <img src={brand.settings.logoUrl} alt={`${brand?.settings?.brandName || brand?.name} logo`} className="w-9 h-9 rounded-xl bg-white object-contain" /> : <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-brand-700 flex items-center justify-center shadow-[0_4px_18px_rgba(10,165,196,0.4)]"><GraduationCap className="w-5 h-5 text-white" strokeWidth={2} /></div>}
+            <span className="text-lg font-semibold tracking-tight text-white">{brand?.settings?.brandName || brand?.name || "Plena LMS"}</span>
           </div>
           <p className="text-xs uppercase tracking-[0.2em] font-medium text-cyan-300/80 mb-3">Kurumsal Eğitim Platformu</p>
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-white leading-[1.1] mb-4">
             Eğitim, kanıtlanabilir olmalı.
           </h1>
           <p className="text-base text-slate-400 leading-relaxed mb-10">
-            Video eğitimleri, kontrol noktası soruları ve denetime hazır raporlarla ekibinizin gerçekten öğrendiğinden emin olun.
+            {brand?.settings?.dashboardText || "Video eğitimleri, kontrol noktası soruları ve denetime hazır raporlarla ekibinizin gerçekten öğrendiğinden emin olun."}
           </p>
           <form onSubmit={handleLogin} className="space-y-3">
             <input

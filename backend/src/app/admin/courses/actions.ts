@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { AuditAction, RetakePolicy, Role } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { sanitizeStorageKeyPart, uploadFileObject } from "@/lib/storage";
+import { uploadFileObject } from "@/lib/storage";
+import { customerStorageKey } from "@/lib/tenant";
 
 function parseRetakePolicy(value: FormDataEntryValue | null): RetakePolicy {
   return value === RetakePolicy.VIDEO_AND_TEST
@@ -54,46 +56,88 @@ export async function createCourseAction(
 
     const originalName =
       file instanceof File && file.name ? file.name : "video.mp4";
-    const safeName = sanitizeStorageKeyPart(originalName);
-    const storageKey = `courses/${Date.now()}-${safeName}`;
+    const courseId = randomUUID();
+    const fileId = randomUUID();
+    const storageKey = customerStorageKey({
+      customerId: session.customerId,
+      courseId,
+      fileId,
+      extension: "mp4",
+    });
     const contentType = file.type || "video/mp4";
-
-    await uploadFileObject(storageKey, file, contentType);
 
     const safeMaxAttempts = Number.isFinite(maxAttempts) ? maxAttempts : 0;
     const safeQuestionCount = Number.isFinite(questionCount) ? questionCount : 0;
 
-    const course = await prisma.course.create({
+    const [category, pool] = await Promise.all([
+      categoryId
+        ? prisma.category.findFirst({
+            where: { id: categoryId, customerId: session.customerId },
+          })
+        : null,
+      questionPoolId
+        ? prisma.questionPool.findFirst({
+            where: { id: questionPoolId, customerId: session.customerId },
+          })
+        : null,
+    ]);
+    if (categoryId && !category) return { ok: false, error: "Kategori bulunamadı" };
+    if (questionPoolId && !pool) return { ok: false, error: "Soru havuzu bulunamadı" };
+
+    const pendingStorageObject = await prisma.storageObject.create({
       data: {
-        title,
-        description,
-        categoryId: categoryId || null,
-        // Sınav ayarlarının kaynağı Exam'dir; Course üzerindeki eski alanlar
-        // geriye dönük uyumluluk için aynı değerlerle yazılır.
-        passPercent,
-        maxAttempts: safeMaxAttempts,
-        questionPoolId: questionPoolId || null,
-        questionCount: safeQuestionCount,
-        video: {
-          create: {
-            storageKey,
-            fileName: originalName,
-            contentType,
-            durationSec,
-            sizeBytes: file.size,
-          },
-        },
-        exam: {
-          create: {
-            passPercent,
-            maxAttempts: safeMaxAttempts,
-            questionPoolId: questionPoolId || null,
-            questionCount: safeQuestionCount,
-            durationMinutes: durationMinutes > 0 ? durationMinutes : null,
-            retakePolicy,
-          },
-        },
+        customerId: session.customerId,
+        storageKey,
+        sizeBytes: file.size,
+        contentType,
+        status: "PENDING_DELETE",
+        deleteAfter: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
+    });
+    await uploadFileObject(storageKey, file, contentType);
+
+    const course = await prisma.$transaction(async (tx) => {
+      const created = await tx.course.create({
+        data: {
+          id: courseId,
+          customerId: session.customerId,
+          title,
+          description,
+          categoryId: categoryId || null,
+          passPercent,
+          maxAttempts: safeMaxAttempts,
+          questionPoolId: questionPoolId || null,
+          questionCount: safeQuestionCount,
+        },
+      });
+      const storageObject = await tx.storageObject.update({
+        where: { id: pendingStorageObject.id },
+        data: { status: "ACTIVE", deleteAfter: null },
+      });
+      await tx.video.create({
+        data: {
+          customerId: session.customerId,
+          courseId: created.id,
+          storageObjectId: storageObject.id,
+          storageKey,
+          fileName: originalName,
+          contentType,
+          durationSec,
+          sizeBytes: file.size,
+        },
+      });
+      await tx.exam.create({
+        data: {
+          courseId: created.id,
+          passPercent,
+          maxAttempts: safeMaxAttempts,
+          questionPoolId: questionPoolId || null,
+          questionCount: safeQuestionCount,
+          durationMinutes: durationMinutes > 0 ? durationMinutes : null,
+          retakePolicy,
+        },
+      });
+      return created;
     });
 
     await recordAudit({
@@ -128,11 +172,19 @@ export async function createPoolAction(input: {
     const name = input.name.trim();
     if (name.length < 2) return { ok: false, error: "Havuz adı çok kısa" };
 
-    const exists = await prisma.questionPool.findUnique({ where: { name } });
+    const exists = await prisma.questionPool.findUnique({
+      where: {
+        customerId_name: { customerId: session.customerId, name },
+      },
+    });
     if (exists) return { ok: false, error: "Bu isimde bir havuz zaten var" };
 
     const pool = await prisma.questionPool.create({
-      data: { name, description: input.description.trim() },
+      data: {
+        customerId: session.customerId,
+        name,
+        description: input.description.trim(),
+      },
     });
 
     await recordAudit({
@@ -175,13 +227,23 @@ export async function addQuestionAction(input: {
     }
 
     const [pool, category] = await Promise.all([
-      prisma.questionPool.findUnique({ where: { id: input.poolId } }),
+      prisma.questionPool.findFirst({
+        where: { id: input.poolId, customerId: session.customerId },
+      }),
       input.categoryId
-        ? prisma.questionCategory.findUnique({ where: { id: input.categoryId } })
+        ? prisma.questionCategory.findFirst({
+            where: { id: input.categoryId, customerId: session.customerId },
+          })
         : prisma.questionCategory.upsert({
-            where: { name: "Genel" },
+            where: {
+              customerId_name: {
+                customerId: session.customerId,
+                name: "Genel",
+              },
+            },
             update: {},
             create: {
+              customerId: session.customerId,
               name: "Genel",
               description: "Belirli bir konu başlığına bağlı olmayan genel sorular.",
             },

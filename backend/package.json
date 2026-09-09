@@ -13,6 +13,10 @@
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:backfill:marti": "tsx scripts/backfill-marti-customer.ts",
+    "db:bootstrap:customer": "tsx scripts/bootstrap-customer.ts",
+    "db:bootstrap:platform-admin": "tsx scripts/bootstrap-platform-admin.ts",
+    "storage:cleanup": "tsx scripts/cleanup-storage.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
     "dev:local": "prisma db push && tsx prisma/seed.ts && next dev"
   },

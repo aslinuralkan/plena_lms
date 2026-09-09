@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash, randomUUID } from "node:crypto";
 import { AuditAction, EnrollmentStatus, Role } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { customerStorageKey } from "@/lib/tenant";
 import {
-  sanitizeStorageKeyPart,
   uploadFileObject,
   uploadObject,
 } from "@/lib/storage";
@@ -34,8 +35,8 @@ export async function POST(
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id: courseId } = await params;
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
+  const course = await prisma.course.findFirst({
+    where: { id: courseId, customerId: session.customerId },
     include: { video: true },
   });
   if (!course) {
@@ -75,9 +76,17 @@ export async function POST(
     return NextResponse.json({ error: "PDF sayfa sayısı belirlenemedi" }, { status: 400 });
   }
 
-  const safeName = sanitizeStorageKeyPart(originalName);
-  const storageKey = `courses/${Date.now()}-${safeName}`;
   const contentType = isPdf ? "application/pdf" : "video/mp4";
+  const fileId = randomUUID();
+  const extension = isPdf ? "pdf" : "mp4";
+  const storageKey = customerStorageKey({
+    customerId: session.customerId,
+    courseId,
+    fileId,
+    extension,
+  });
+  let checksum: string | null = null;
+  let pdfBytes: Uint8Array | null = null;
 
   if (isPdf) {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -92,30 +101,75 @@ export async function POST(
         { status: 400 },
       );
     }
-    await uploadObject(storageKey, bytes, contentType);
-  } else {
-    await uploadFileObject(storageKey, file, contentType);
+    checksum = createHash("sha256").update(bytes).digest("hex");
+    pdfBytes = bytes;
   }
 
-  await prisma.video.upsert({
-    where: { courseId },
-    update: {
+  // Önce temizleme kuyruğuna yazılır. Upload veya DB işlemi yarıda kalırsa
+  // fiziksel nesne sahipsiz kalmaz; cleanup komutu bu kaydı güvenle toplar.
+  const pendingStorageObject = await prisma.storageObject.create({
+    data: {
+      customerId: session.customerId,
       storageKey,
-      fileName: originalName,
-      contentType,
-      durationSec: isPdf ? requestedPageCount : durationSec,
-      pageCount: isPdf ? requestedPageCount : null,
+      checksum,
       sizeBytes: file.size,
-    },
-    create: {
-      courseId,
-      storageKey,
-      fileName: originalName,
       contentType,
-      durationSec: isPdf ? requestedPageCount : durationSec,
-      pageCount: isPdf ? requestedPageCount : null,
-      sizeBytes: file.size,
+      status: "PENDING_DELETE",
+      deleteAfter: new Date(Date.now() + 24 * 60 * 60 * 1000),
     },
+  });
+
+  try {
+    if (pdfBytes) await uploadObject(storageKey, pdfBytes, contentType);
+    else await uploadFileObject(storageKey, file, contentType);
+  } catch (error) {
+    console.error("Content upload failed:", error);
+    return NextResponse.json({ error: "İçerik yüklenemedi" }, { status: 500 });
+  }
+
+  const newStorageObject = await prisma.$transaction(async (tx) => {
+    const storageObject = await tx.storageObject.update({
+      where: { id: pendingStorageObject.id },
+      data: { status: "ACTIVE", deleteAfter: null },
+    });
+    await tx.video.upsert({
+      where: { courseId },
+      update: {
+        customerId: session.customerId,
+        storageObjectId: storageObject.id,
+        storageKey,
+        fileName: originalName,
+        contentType,
+        durationSec: isPdf ? requestedPageCount : durationSec,
+        pageCount: isPdf ? requestedPageCount : null,
+        sizeBytes: file.size,
+      },
+      create: {
+        customerId: session.customerId,
+        courseId,
+        storageObjectId: storageObject.id,
+        storageKey,
+        fileName: originalName,
+        contentType,
+        durationSec: isPdf ? requestedPageCount : durationSec,
+        pageCount: isPdf ? requestedPageCount : null,
+        sizeBytes: file.size,
+      },
+    });
+    if (course.video?.storageObjectId) {
+      await tx.storageObject.updateMany({
+        where: {
+          id: course.video.storageObjectId,
+          customerId: session.customerId,
+          status: "ACTIVE",
+        },
+        data: {
+          status: "PENDING_DELETE",
+          deleteAfter: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+    return storageObject;
   });
 
   const previousWasPdf = Boolean(course.video?.pageCount);
@@ -159,6 +213,7 @@ export async function POST(
       contentReplaced,
       pageCount: isPdf ? requestedPageCount : null,
       storageKey,
+      storageObjectId: newStorageObject.id,
       sizeBytes: file.size,
     },
   });

@@ -1,10 +1,11 @@
 import { createReadStream, createWriteStream } from "fs";
-import { mkdir, readFile, stat, writeFile } from "fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -146,6 +147,21 @@ export async function uploadFileObject(
       ContentLength: file.size,
       ContentType: contentType,
     }),
+  );
+}
+
+export async function deleteObject(key: string) {
+  if (storageDriver() === "local") {
+    try {
+      await unlink(localPath(key));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    return;
+  }
+
+  await getS3Client().send(
+    new DeleteObjectCommand({ Bucket: bucketName(), Key: key }),
   );
 }
 

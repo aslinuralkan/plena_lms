@@ -2,7 +2,7 @@
 
 Tek repo, iki katman:
 
-- `frontend/` — Plena arayüzü (CRA, http://localhost:3000). Kullanıcıların gördüğü tek arayüz budur.
+- `frontend/` — Plena arayüzü (CRA, http://localhost:3002). Kullanıcıların gördüğü tek arayüz budur.
 - `backend/` — LMS backend'i (Next.js API + Prisma + PostgreSQL, http://localhost:3001). Sadece API olarak kullanılır; kendi sayfaları artık kullanılmaz.
 - `docs/` — proje dokümanları (PRD, yönerge ve tasarım notları).
 
@@ -40,9 +40,9 @@ Script şunları yapar (idempotenttir, tekrar çalıştırmak güvenlidir):
 ./start-local.sh
 ```
 
-Script sırasıyla gömülü PostgreSQL'i (:5432), backend API'sini (:3001) ve arayüzü (:3000) başlatır.
+Script sırasıyla gömülü PostgreSQL'i (:5433), backend API'sini (:3001) ve arayüzü (:3002) başlatır.
 
-Giriş: http://localhost:3000
+Giriş: http://localhost:3002
 
 | Rol | E-posta | Şifre |
 |-----|---------|-------|

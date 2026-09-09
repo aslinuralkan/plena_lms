@@ -10,6 +10,8 @@ NODE_DIR="$ROOT/.tools/node"
 PG_DIR="$ROOT/.tools/pg"
 PGBIN="$PG_DIR/node_modules/@embedded-postgres/darwin-arm64/native/bin"
 PGDATA="$PG_DIR/data"
+# 5432 sistemdeki Postgres ile çakışmasın diye gömülü instance ayrı portta dinler
+PGPORT="5433"
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
@@ -50,6 +52,9 @@ if [ ! -d "$PGDATA" ]; then
   step "Veritabani dizini olusturuluyor (initdb)"
   "$PGBIN/initdb" -D "$PGDATA" -U marti -A trust -E UTF8 >/dev/null
 fi
+if [ -f "$PGDATA/postgresql.conf" ]; then
+  perl -i -pe 's/^#?port\s*=.*/port = '"$PGPORT"'/' "$PGDATA/postgresql.conf"
+fi
 
 # 3) Ortam dosyalari
 if [ ! -f "$ROOT/backend/.env" ]; then
@@ -81,7 +86,7 @@ if "$PGBIN/pg_ctl" -D "$PGDATA" status >/dev/null 2>&1; then
   STARTED_PG=0
 else
   step "PostgreSQL baslatiliyor"
-  "$PGBIN/pg_ctl" -D "$PGDATA" -l "$PG_DIR/pg.log" start >/dev/null
+  "$PGBIN/pg_ctl" -D "$PGDATA" -o "-p $PGPORT" -l "$PG_DIR/pg.log" start >/dev/null
   STARTED_PG=1
 fi
 
@@ -95,6 +100,6 @@ fi
 step "Kurulum tamamlandi"
 echo
 echo "Baslatmak icin : ./start-local.sh"
-echo "Arayuz         : http://localhost:3000"
+echo "Arayuz         : http://localhost:3002"
 echo "Admin girisi   : admin@marti.demo / Admin123!"
 echo "Calisan girisi : kaptan1@marti.demo / Kaptan123!"

@@ -1,17 +1,21 @@
 import { ACTIVATION_TTL_MINUTES } from "./activation";
 import { PASSWORD_RESET_TTL_MINUTES } from "./password-reset";
+import { prisma } from "./prisma";
+import { PLATFORM_PASSWORD_RESET_TTL_MINUTES } from "./platform-password-reset";
 
 type ActivationEmailInput = {
   to: string;
   name: string;
   code: string;
   token: string;
+  customerId?: string;
 };
 
 type PasswordResetEmailInput = {
   to: string;
   name: string;
   token: string;
+  customerId?: string;
 };
 
 function escapeHtml(value: string) {
@@ -24,7 +28,7 @@ function escapeHtml(value: string) {
 }
 
 function appUrl() {
-  return (process.env.APP_URL || "http://localhost:3000").replace(/\/+$/, "");
+  return (process.env.APP_URL || "http://localhost:3002").replace(/\/+$/, "");
 }
 
 function activationUrl(token: string) {
@@ -114,9 +118,10 @@ async function sendEmail(input: {
   subject: string;
   html: string;
   text: string;
+  from?: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  if (!apiKey || apiKey.includes("CHANGE_ME")) {
     throw new Error("RESEND_API_KEY tanımlı değil");
   }
 
@@ -128,7 +133,7 @@ async function sendEmail(input: {
     },
     body: JSON.stringify({
       from:
-        process.env.EMAIL_FROM ||
+        input.from || process.env.EMAIL_FROM ||
         "Plena LMS <noreply@bislabs.tech>",
       to: [input.to],
       subject: input.subject,
@@ -152,16 +157,35 @@ async function sendEmail(input: {
 }
 
 export async function sendActivationEmail(input: ActivationEmailInput) {
+  const settings = input.customerId
+    ? await prisma.customerSettings.findUnique({ where: { customerId: input.customerId } })
+    : null;
+  const brandName = settings?.brandName || "Martı Denizcilik";
+  const poweredBy = settings?.poweredByText || "Powered by Plena LMS";
+  const html = activationHtml(input)
+    .replaceAll("Martı Denizcilik", escapeHtml(brandName))
+    .replaceAll("Powered by Plena LMS", escapeHtml(poweredBy));
+  const text = activationText(input)
+    .replaceAll("Martı Denizcilik", brandName)
+    .replaceAll("Powered by Plena LMS", poweredBy);
   return sendEmail({
     to: input.to,
-    subject: "Plena LMS - Hesabınızı Aktive Edin",
-    html: activationHtml(input),
-    text: activationText(input),
+    subject: `${brandName} - Hesabınızı Aktive Edin`,
+    html,
+    text,
+    from:
+      settings?.emailSenderAddress
+        ? `${settings.emailSenderName || brandName} <${settings.emailSenderAddress}>`
+        : undefined,
   });
 }
 
 export async function sendPasswordResetEmail(input: PasswordResetEmailInput) {
+  const settings = input.customerId
+    ? await prisma.customerSettings.findUnique({ where: { customerId: input.customerId } })
+    : null;
   const safeName = escapeHtml(input.name);
+  const brandName = settings?.brandName || "Plena LMS";
   const resetUrl = passwordResetUrl(input.token);
   const text = `Plena LMS\n\nMerhaba ${input.name},\n\nŞifrenizi yenilemek için aşağıdaki bağlantıyı kullanın:\n\n${resetUrl}\n\nBu bağlantı ${PASSWORD_RESET_TTL_MINUTES} dakika boyunca geçerlidir ve yalnızca bir kez kullanılabilir. Bu talebi siz oluşturmadıysanız e-postayı görmezden gelebilirsiniz.`;
   const html = `<!doctype html>
@@ -183,8 +207,27 @@ export async function sendPasswordResetEmail(input: PasswordResetEmailInput) {
 
   return sendEmail({
     to: input.to,
-    subject: "Plena LMS - Şifrenizi Yenileyin",
-    html,
-    text,
+    subject: `${brandName} - Şifrenizi Yenileyin`,
+    html: html.replaceAll("Plena LMS", escapeHtml(brandName)),
+    text: text.replaceAll("Plena LMS", brandName),
+    from:
+      settings?.emailSenderAddress
+        ? `${settings.emailSenderName || settings.brandName || "Plena LMS"} <${settings.emailSenderAddress}>`
+        : undefined,
+  });
+}
+
+export async function sendPlatformPasswordResetEmail(input: {
+  to: string;
+  name: string;
+  token: string;
+}) {
+  const url = `${appUrl()}/platform/reset-password?token=${encodeURIComponent(input.token)}`;
+  const safeName = escapeHtml(input.name);
+  return sendEmail({
+    to: input.to,
+    subject: "Plena Platform - Şifrenizi Yenileyin",
+    text: `Plena Platform\n\nMerhaba ${input.name},\n\nSuper Admin şifrenizi yenilemek için bağlantıyı kullanın:\n${url}\n\nBağlantı ${PLATFORM_PASSWORD_RESET_TTL_MINUTES} dakika geçerlidir ve tek kullanımlıktır.`,
+    html: `<!doctype html><html lang="tr"><body style="font-family:Arial,sans-serif;color:#172033"><h1>Plena Platform</h1><p>Merhaba ${safeName},</p><p>Super Admin şifrenizi yenilemek için aşağıdaki tek kullanımlık bağlantıyı açın.</p><p><a href="${url}">Şifremi yenile</a></p><p>Bağlantı ${PLATFORM_PASSWORD_RESET_TTL_MINUTES} dakika geçerlidir.</p></body></html>`,
   });
 }

@@ -14,7 +14,6 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("Kaptan123!");
   const [error, setError] = useState("");
 
   async function load() {
@@ -32,7 +31,7 @@ export default function AdminUsersPage() {
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role: "USER" }),
+      body: JSON.stringify({ name, email, role: "USER", sendActivation: true }),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -109,20 +108,12 @@ export default function AdminUsersPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <input
-            className="w-full rounded-xl border border-sea-200 px-3 py-2"
-            placeholder="Şifre"
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"
             className="rounded-xl bg-sea-700 px-4 py-2 text-white hover:bg-sea-800"
           >
-            Oluştur
+            Oluştur ve aktivasyon gönder
           </button>
         </form>
       </section>

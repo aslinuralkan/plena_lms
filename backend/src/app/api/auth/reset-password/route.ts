@@ -27,11 +27,13 @@ async function findReset(token: string) {
       user: {
         select: {
           id: true,
+          customerId: true,
           email: true,
           name: true,
           passwordHash: true,
           active: true,
           deletedAt: true,
+          customer: { select: { status: true } },
         },
       },
     },
@@ -43,6 +45,7 @@ function usable(reset: Awaited<ReturnType<typeof findReset>>) {
     reset &&
       reset.user.active &&
       !reset.user.deletedAt &&
+      reset.user.customer.status === "ACTIVE" &&
       passwordResetTokenUsable(reset),
   );
 }
@@ -102,7 +105,7 @@ export async function POST(req: NextRequest) {
           passwordHash,
           sessionVersion: { increment: 1 },
         },
-        select: { id: true, email: true },
+        select: { id: true, customerId: true, email: true },
       });
       await tx.passwordResetToken.updateMany({
         where: { userId: user.id, usedAt: null },

@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuditAction, Role } from "@prisma/client";
-import {
-  discardActivationToken,
-  issueActivationToken,
-  keepOnlyActivationToken,
-} from "@/lib/activation";
+import { deliverUserActivation } from "@/lib/activation-delivery";
 import { requireSession } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
-import { sendActivationEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -19,7 +14,7 @@ export async function POST(
 
   const { id } = await params;
   const user = await prisma.user.findUnique({
-    where: { id, deletedAt: null },
+    where: { id, customerId: session.customerId, deletedAt: null },
     select: { id: true, email: true, name: true, active: true },
   });
 
@@ -33,20 +28,13 @@ export async function POST(
     );
   }
 
-  let credentials: Awaited<ReturnType<typeof issueActivationToken>> | null =
-    null;
   try {
-    credentials = await issueActivationToken(user.id);
-    const delivery = await sendActivationEmail({
-      to: user.email,
+    const delivery = await deliverUserActivation({
+      userId: user.id,
+      customerId: session.customerId,
+      email: user.email,
       name: user.name,
-      code: credentials.code,
-      token: credentials.token,
     });
-    await keepOnlyActivationToken(user.id, credentials.activation.id).catch(
-      (error) =>
-        console.error("Eski aktivasyon tokenları kapatılamadı:", error),
-    );
 
     await recordAudit({
       action: AuditAction.ADMIN_SENT_ACTIVATION,
@@ -55,27 +43,20 @@ export async function POST(
       entityId: user.id,
       metadata: {
         email: user.email,
-        deliveryId: delivery.id,
-        expiresAt: credentials.expiresAt.toISOString(),
+        deliveryId: delivery.deliveryId,
+        expiresAt: delivery.expiresAt,
+        deliveryMode: "email",
         resent: true,
       },
     });
 
     return NextResponse.json({
       ok: true,
-      expiresAt: credentials.expiresAt.toISOString(),
+      activationSent: delivery.sent,
+      expiresAt: delivery.expiresAt,
     });
   } catch (error) {
     console.error("Aktivasyon maili tekrar gönderilemedi:", error);
-    if (credentials) {
-      await discardActivationToken(credentials.activation.id).catch(
-        (discardError) =>
-          console.error(
-            "Gönderilemeyen aktivasyon tokenı silinemedi:",
-            discardError,
-          ),
-      );
-    }
     return NextResponse.json(
       { error: "Aktivasyon maili gönderilemedi" },
       { status: 502 },

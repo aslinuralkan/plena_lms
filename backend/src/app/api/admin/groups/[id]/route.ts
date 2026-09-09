@@ -26,14 +26,21 @@ export async function PATCH(
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const group = await prisma.group.findUnique({ where: { id } });
+  const group = await prisma.group.findFirst({
+    where: { id, customerId: session.customerId },
+  });
   if (!group) {
     return NextResponse.json({ error: "Ekip bulunamadı" }, { status: 404 });
   }
 
   if (parsed.data.name && parsed.data.name !== group.name) {
     const exists = await prisma.group.findUnique({
-      where: { name: parsed.data.name },
+      where: {
+        customerId_name: {
+          customerId: session.customerId,
+          name: parsed.data.name,
+        },
+      },
     });
     if (exists) {
       return NextResponse.json(

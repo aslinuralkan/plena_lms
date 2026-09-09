@@ -24,8 +24,12 @@ export async function GET(
 
   const { id: courseId } = await params;
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.id, courseId } },
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      courseId,
+      customerId: session.customerId,
+    },
     include: { course: { include: { video: true } } },
   });
 
@@ -44,8 +48,8 @@ export async function GET(
     }
   } else if (session.role === Role.ADMIN) {
     // Admin önizlemesi: atama şartı aranmaz.
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, customerId: session.customerId },
       include: { video: true },
     });
     video = course?.video ?? null;
@@ -54,6 +58,9 @@ export async function GET(
   }
 
   if (!video) {
+    return NextResponse.json({ error: "Eğitim içeriği yok" }, { status: 404 });
+  }
+  if (video.customerId !== session.customerId) {
     return NextResponse.json({ error: "Eğitim içeriği yok" }, { status: 404 });
   }
 

@@ -17,11 +17,15 @@ export const dynamic = "force-dynamic";
  * Testte sorulacak sorular. Havuzdan sortOrder sırasıyla alınır; GET ve POST
  * aynı listeyi görsün diye rastgele seçim yapılmaz.
  */
-async function loadQuizQuestions(settings: ExamSettings) {
+async function loadQuizQuestions(settings: ExamSettings, customerId: string) {
   if (!settings.questionPoolId) return [];
 
   return prisma.question.findMany({
-    where: { poolId: settings.questionPoolId, active: true },
+    where: {
+      poolId: settings.questionPoolId,
+      active: true,
+      pool: { customerId },
+    },
     orderBy: { sortOrder: "asc" },
     take: settings.questionCount > 0 ? settings.questionCount : undefined,
     include: { choices: { orderBy: { id: "asc" } } },
@@ -29,9 +33,14 @@ async function loadQuizQuestions(settings: ExamSettings) {
 }
 
 /** Test ekranını açmadan önceki tüm kuralları doğrular. */
-async function loadGate(userId: string, courseId: string, role: Role) {
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId, courseId } },
+async function loadGate(
+  userId: string,
+  courseId: string,
+  role: Role,
+  customerId: string,
+) {
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { userId, courseId, customerId },
     include: { course: { include: { exam: true } } },
   });
 
@@ -58,13 +67,18 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id: courseId } = await params;
-  const gate = await loadGate(session.id, courseId, session.role);
+  const gate = await loadGate(
+    session.id,
+    courseId,
+    session.role,
+    session.customerId,
+  );
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const { enrollment, settings } = gate;
-  const questions = await loadQuizQuestions(settings);
+  const questions = await loadQuizQuestions(settings, session.customerId);
 
   if (questions.length === 0) {
     return NextResponse.json(
@@ -111,7 +125,12 @@ export async function POST(
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id: courseId } = await params;
-  const gate = await loadGate(session.id, courseId, session.role);
+  const gate = await loadGate(
+    session.id,
+    courseId,
+    session.role,
+    session.customerId,
+  );
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -122,7 +141,7 @@ export async function POST(
   }
 
   const { enrollment, settings, examId } = gate;
-  const questions = await loadQuizQuestions(settings);
+  const questions = await loadQuizQuestions(settings, session.customerId);
   if (questions.length === 0) {
     return NextResponse.json({ error: "Soru bulunamadı" }, { status: 409 });
   }
@@ -138,6 +157,7 @@ export async function POST(
 
   const attempt = await prisma.quizAttempt.create({
     data: {
+      customerId: session.customerId,
       enrollmentId: enrollment.id,
       userId: session.id,
       courseId,

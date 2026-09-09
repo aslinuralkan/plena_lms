@@ -47,19 +47,24 @@ export async function POST(
     }
   }
 
-  const pool = await prisma.questionPool.findUnique({ where: { id: poolId } });
+  const pool = await prisma.questionPool.findFirst({
+    where: { id: poolId, customerId: session.customerId },
+  });
   if (!pool) {
     return NextResponse.json({ error: "Soru havuzu bulunamadı" }, { status: 404 });
   }
 
   const category = parsed.data.categoryId
-    ? await prisma.questionCategory.findUnique({
-        where: { id: parsed.data.categoryId },
+    ? await prisma.questionCategory.findFirst({
+        where: { id: parsed.data.categoryId, customerId: session.customerId },
       })
     : await prisma.questionCategory.upsert({
-        where: { name: "Genel" },
+        where: {
+          customerId_name: { customerId: session.customerId, name: "Genel" },
+        },
         update: {},
         create: {
+          customerId: session.customerId,
           name: "Genel",
           description: "Belirli bir konu başlığına bağlı olmayan genel sorular.",
         },

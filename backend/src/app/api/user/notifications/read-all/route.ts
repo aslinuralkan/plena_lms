@@ -8,7 +8,11 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const result = await prisma.userNotification.updateMany({
-    where: { userId: session.id, readAt: null },
+    where: {
+      userId: session.id,
+      customerId: session.customerId,
+      readAt: null,
+    },
     data: { readAt: new Date() },
   });
 

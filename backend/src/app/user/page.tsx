@@ -17,10 +17,10 @@ export default async function UserHomePage() {
   const session = await requireSession(["USER", "ADMIN"]);
   if (!session) redirect("/login");
 
-  await refreshOverdue({ userId: session.id });
+  await refreshOverdue({ userId: session.id, customerId: session.customerId });
 
   const enrollments = await prisma.enrollment.findMany({
-    where: visibleEnrollmentWhere(session.id),
+    where: visibleEnrollmentWhere(session.id, session.customerId),
     include: {
       course: {
         include: {
@@ -34,7 +34,11 @@ export default async function UserHomePage() {
   });
 
   const upcoming = await prisma.enrollment.count({
-    where: { userId: session.id, startsAt: { gt: new Date() } },
+    where: {
+      userId: session.id,
+      customerId: session.customerId,
+      startsAt: { gt: new Date() },
+    },
   });
 
   return (

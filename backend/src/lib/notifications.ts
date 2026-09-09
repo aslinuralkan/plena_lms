@@ -108,11 +108,13 @@ export function dueReminderDays(input: {
 
 export async function syncUserNotifications(
   userId: string,
+  customerId: string,
   now = new Date(),
 ) {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       userId,
+      customerId,
       startsAt: { lte: now },
       course: { active: true },
     },
@@ -133,6 +135,7 @@ export async function syncUserNotifications(
 
   for (const enrollment of enrollments) {
     notifications.push({
+      customerId,
       userId,
       kind: NotificationKind.TRAINING_STARTED,
       dedupeKey: trainingStartDedupeKey(
@@ -161,6 +164,7 @@ export async function syncUserNotifications(
     if (daysRemaining === null || !enrollment.dueAt) continue;
 
     notifications.push({
+      customerId,
       userId,
       kind: NotificationKind.DUE_REMINDER,
       dedupeKey: dueReminderDedupeKey(

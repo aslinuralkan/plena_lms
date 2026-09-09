@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       : undefined;
 
   const where: Prisma.EnrollmentWhereInput = {
+    customerId: session.customerId,
     userId,
     courseId,
     status,
@@ -74,6 +75,7 @@ export async function GET(req: NextRequest) {
   if (enrollmentIds.length > 0) {
     const cpEvents = await prisma.watchEvent.findMany({
       where: {
+        customerId: session.customerId,
         enrollmentId: { in: enrollmentIds },
         eventType: {
           in: [WatchEventType.CHECKPOINT_PASSED, WatchEventType.CHECKPOINT_FAILED],

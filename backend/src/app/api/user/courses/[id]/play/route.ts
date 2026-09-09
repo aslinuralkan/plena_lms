@@ -15,10 +15,18 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id: courseId } = await params;
-  await refreshOverdue({ userId: session.id, courseId });
+  await refreshOverdue({
+    userId: session.id,
+    courseId,
+    customerId: session.customerId,
+  });
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.id, courseId } },
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      courseId,
+      customerId: session.customerId,
+    },
     include: {
       course: {
         include: {
@@ -75,6 +83,7 @@ export async function GET(
 
   await prisma.watchEvent.create({
     data: {
+      customerId: session.customerId,
       enrollmentId: enrollment.id,
       userId: session.id,
       courseId,
@@ -91,6 +100,7 @@ export async function GET(
   const passedEvents = await prisma.watchEvent.findMany({
     where: {
       enrollmentId: enrollment.id,
+      customerId: session.customerId,
       eventType: WatchEventType.CHECKPOINT_PASSED,
     },
     select: { metadata: true },

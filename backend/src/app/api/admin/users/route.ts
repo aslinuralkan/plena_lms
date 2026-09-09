@@ -2,14 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { AuditAction, Role } from "@prisma/client";
 import { z } from "zod";
-import {
-  discardActivationToken,
-  issueActivationToken,
-  keepOnlyActivationToken,
-} from "@/lib/activation";
+import { deliverUserActivation } from "@/lib/activation-delivery";
 import { hashPassword, requireSession } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
-import { sendActivationEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -17,7 +12,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const users = await prisma.user.findMany({
-    where: { deletedAt: null },
+    where: { customerId: session.customerId, deletedAt: null },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -44,9 +39,7 @@ export async function GET() {
 const createSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
-  password: z.string().min(6).optional(),
   role: z.enum(["ADMIN", "USER"]).default("USER"),
-  sendActivation: z.boolean().default(false),
 });
 
 export async function POST(req: NextRequest) {
@@ -58,18 +51,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
   }
 
-  const hasInitialPassword = Boolean(parsed.data.password);
-  const passwordHash = await hashPassword(
-    parsed.data.password || randomBytes(32).toString("base64url"),
-  );
+  const passwordHash = await hashPassword(randomBytes(32).toString("base64url"));
   try {
     const user = await prisma.user.create({
       data: {
+        customerId: session.customerId,
         email: parsed.data.email.toLowerCase(),
         name: parsed.data.name,
         passwordHash,
         role: parsed.data.role,
-        active: hasInitialPassword,
+        active: false,
       },
       select: { id: true, email: true, name: true, role: true, active: true },
     });
@@ -82,53 +73,33 @@ export async function POST(req: NextRequest) {
       metadata: {
         email: user.email,
         role: user.role,
-        activationRequired: !user.active,
+        activationRequired: true,
       },
     });
 
-    let activationEmailSent: boolean | null = null;
-    if (parsed.data.sendActivation && !user.active) {
-      activationEmailSent = false;
-      let credentials: Awaited<ReturnType<typeof issueActivationToken>> | null =
-        null;
-      try {
-        credentials = await issueActivationToken(user.id);
-        const delivery = await sendActivationEmail({
-          to: user.email,
-          name: user.name,
-          code: credentials.code,
-          token: credentials.token,
-        });
-        activationEmailSent = true;
-        await keepOnlyActivationToken(
-          user.id,
-          credentials.activation.id,
-        ).catch((error) =>
-          console.error("Eski aktivasyon tokenları kapatılamadı:", error),
-        );
-        await recordAudit({
-          action: AuditAction.ADMIN_SENT_ACTIVATION,
-          actor: session,
-          entityType: "User",
-          entityId: user.id,
-          metadata: {
-            email: user.email,
-            deliveryId: delivery.id,
-            expiresAt: credentials.expiresAt.toISOString(),
-          },
-        });
-      } catch (error) {
-        console.error("Aktivasyon maili gönderilemedi:", error);
-        if (credentials) {
-          await discardActivationToken(credentials.activation.id).catch(
-            (discardError) =>
-              console.error(
-                "Gönderilemeyen aktivasyon tokenı silinemedi:",
-                discardError,
-              ),
-          );
-        }
-      }
+    let activationEmailSent = false;
+    try {
+      const delivery = await deliverUserActivation({
+        userId: user.id,
+        customerId: session.customerId,
+        email: user.email,
+        name: user.name,
+      });
+      activationEmailSent = delivery.sent;
+      await recordAudit({
+        action: AuditAction.ADMIN_SENT_ACTIVATION,
+        actor: session,
+        entityType: "User",
+        entityId: user.id,
+        metadata: {
+          email: user.email,
+          deliveryId: delivery.deliveryId,
+          expiresAt: delivery.expiresAt,
+          deliveryMode: "email",
+        },
+      });
+    } catch (error) {
+      console.error("Aktivasyon maili gönderilemedi:", error);
     }
 
     return NextResponse.json(

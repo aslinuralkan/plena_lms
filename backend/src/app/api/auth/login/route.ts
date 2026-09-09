@@ -4,6 +4,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { createSession, verifyPassword } from "@/lib/auth";
+import {
+  isCustomerLoginEligible,
+  requestMatchesCustomerDomain,
+} from "@/lib/tenant";
 
 const schema = z.object({
   email: z.string().email(),
@@ -19,8 +23,33 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email.toLowerCase() },
+    include: {
+      customer: {
+        include: {
+          settings: {
+            select: {
+              brandName: true,
+              logoUrl: true,
+              primaryColor: true,
+              secondaryColor: true,
+              dashboardText: true,
+              reportTitle: true,
+              poweredByText: true,
+              domain: true,
+            },
+          },
+        },
+      },
+    },
   });
-  if (!user || !user.active || user.deletedAt) {
+  if (
+    !user ||
+    !isCustomerLoginEligible({
+      userActive: user.active,
+      userDeletedAt: user.deletedAt,
+      customerStatus: user.customer.status,
+    })
+  ) {
     return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
   }
 
@@ -29,8 +58,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
   }
 
+  const origin = req.headers.get("origin");
+  let requestHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  if (origin) {
+    try {
+      requestHost = new URL(origin).host;
+    } catch {
+      return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
+    }
+  }
+  const configuredHost = user.customer.settings?.domain?.toLowerCase();
+  if (!requestMatchesCustomerDomain(configuredHost, requestHost)) {
+    return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
+  }
+
   await createSession({
     id: user.id,
+    customerId: user.customerId,
     email: user.email,
     name: user.name,
     role: user.role,
@@ -50,5 +94,12 @@ export async function POST(req: NextRequest) {
     email: user.email,
     name: user.name,
     role: user.role,
+    customerId: user.customerId,
+    customer: {
+      id: user.customer.id,
+      name: user.customer.name,
+      slug: user.customer.slug,
+      settings: user.customer.settings,
+    },
   });
 }

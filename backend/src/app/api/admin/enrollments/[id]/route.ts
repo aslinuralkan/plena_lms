@@ -17,8 +17,8 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { id },
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { id, customerId: session.customerId },
     include: {
       user: { select: { id: true, name: true, email: true } },
       course: { select: { id: true, title: true } },
@@ -30,12 +30,12 @@ export async function GET(
 
   const [watchEvents, quizAttempts] = await Promise.all([
     prisma.watchEvent.findMany({
-      where: { enrollmentId: id },
+      where: { enrollmentId: id, customerId: session.customerId },
       orderBy: { createdAt: "asc" },
       take: 2000,
     }),
     prisma.quizAttempt.findMany({
-      where: { enrollmentId: id },
+      where: { enrollmentId: id, customerId: session.customerId },
       orderBy: { attemptNo: "asc" },
       include: {
         answers: {

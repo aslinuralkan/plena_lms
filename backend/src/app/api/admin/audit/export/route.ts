@@ -150,8 +150,18 @@ export async function GET(req: NextRequest) {
   const format = searchParams.get("format") || "xlsx";
   const userId = searchParams.get("userId") || undefined;
   const courseId = searchParams.get("courseId") || undefined;
+  const customer = await prisma.customer.findUnique({
+    where: { id: session.customerId },
+    include: { settings: true },
+  });
+  const brandName = customer?.settings?.brandName || customer?.name || "Plena LMS";
+  const fileSlug = customer?.slug || "plena";
 
-  await refreshOverdue({ userId, courseId });
+  await refreshOverdue({
+    customerId: session.customerId,
+    userId,
+    courseId,
+  });
 
   await recordAudit({
     action: AuditAction.ADMIN_EXPORTED_REPORT,
@@ -161,7 +171,7 @@ export async function GET(req: NextRequest) {
 
   const [enrollments, watchEvents, quizAttempts, auditLogs] = await Promise.all([
     prisma.enrollment.findMany({
-      where: { userId, courseId },
+      where: { customerId: session.customerId, userId, courseId },
       include: {
         user: true,
         course: { include: { video: true } },
@@ -170,17 +180,18 @@ export async function GET(req: NextRequest) {
       orderBy: [{ userId: "asc" }, { courseId: "asc" }],
     }),
     prisma.watchEvent.findMany({
-      where: { userId, courseId },
+      where: { customerId: session.customerId, userId, courseId },
       include: { user: true, course: { include: { video: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.quizAttempt.findMany({
-      where: { userId, courseId },
+      where: { customerId: session.customerId, userId, courseId },
       include: { user: true, course: true },
       orderBy: { completedAt: "asc" },
     }),
     prisma.auditLog.findMany({
       where: {
+        customerId: session.customerId,
         ...(userId ? { actorId: userId } : {}),
         ...(courseId ? { entityId: courseId } : {}),
       },
@@ -218,16 +229,16 @@ export async function GET(req: NextRequest) {
     return new NextResponse("\uFEFF" + lines.join("\n"), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="marti-rapor.csv"',
+        "Content-Disposition": `attachment; filename="${fileSlug}-rapor.csv"`,
       },
     });
   }
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Martı Denizcilik - Plena LMS";
+  workbook.creator = `${brandName} - Plena LMS`;
   workbook.created = new Date();
   workbook.modified = new Date();
-  workbook.company = "Martı Denizcilik";
+  workbook.company = brandName;
 
   const courseTitle =
     enrollments[0]?.course.title ??

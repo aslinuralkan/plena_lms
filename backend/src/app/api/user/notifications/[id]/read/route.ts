@@ -12,7 +12,12 @@ export async function PATCH(
 
   const { id } = await params;
   await prisma.userNotification.updateMany({
-    where: { id, userId: session.id, readAt: null },
+    where: {
+      id,
+      userId: session.id,
+      customerId: session.customerId,
+      readAt: null,
+    },
     data: { readAt: new Date() },
   });
 
